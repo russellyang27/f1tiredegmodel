@@ -1,0 +1,10 @@
+/** Converts "São Paulo" -> "sao-paulo", "Yas Island" -> "yas-island", etc. */
+export function slugify(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+}
