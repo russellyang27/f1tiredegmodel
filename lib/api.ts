@@ -22,20 +22,34 @@ export interface PredictionResult {
  * (when NEXT_PUBLIC_API_URL is set); falls back to the deterministic mock
  * on any failure so the UI never dead-ends. The returned `source` field lets
  * the UI honestly label which one produced the result.
+ *
+ * Timeout is intentionally generous (50s), not just "a bit longer than
+ * inference should take": free-tier hosts like Render spin the service down
+ * after ~15 minutes idle, and a full cold boot (container starting from
+ * scratch, not just the model refitting) can itself take 30-60+ seconds.
+ * An 8s timeout meant most first-requests-after-idle never even reached a
+ * running instance -- the browser gave up before the container finished
+ * booting, which is indistinguishable from a real failure without digging
+ * into server logs. `onSlow` lets the caller show a "waking up" message
+ * once it's clear this is a slow-start, not an instant response.
  */
-export async function getPrediction(circuit: Circuit, req: PredictionRequest): Promise<PredictionResult> {
+export async function getPrediction(
+  circuit: Circuit,
+  req: PredictionRequest,
+  options?: { onSlow?: () => void },
+): Promise<PredictionResult> {
   if (!API_URL) {
     return { data: predictDegradation(circuit, req), source: "mock" }
   }
+
+  const slowTimer = options?.onSlow ? setTimeout(options.onSlow, 4000) : null
 
   try {
     const res = await fetch(`${API_URL}/predict`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),
-      // Keep this reasonably tight — a Random Forest inference over a
-      // 40-lap sweep per compound should be fast; don't hang the UI.
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(50000),
     })
 
     if (!res.ok) {
@@ -51,5 +65,7 @@ export async function getPrediction(circuit: Circuit, req: PredictionRequest): P
       source: "mock",
       error: err instanceof Error ? err.message : "Unknown error",
     }
+  } finally {
+    if (slowTimer) clearTimeout(slowTimer)
   }
 }

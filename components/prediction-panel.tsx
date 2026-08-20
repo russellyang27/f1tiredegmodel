@@ -28,6 +28,7 @@ export function PredictionPanel({ circuit, open, onClose, settings, units }: Pre
   const { trackTemp, setTrackTemp, wet, setWet, threshold, setThreshold, selected, toggleCompound } = settings
   const [result, setResult] = useState<PredictionResponse | null>(null)
   const [running, setRunning] = useState(false)
+  const [slow, setSlow] = useState(false)
   const [source, setSource] = useState<PredictionSource | null>(null)
 
   // Reset only the result (not the settings — those persist across circuits
@@ -36,6 +37,7 @@ export function PredictionPanel({ circuit, open, onClose, settings, units }: Pre
     if (open) {
       setResult(null)
       setRunning(false)
+      setSlow(false)
       setSource(null)
     }
   }, [open, circuit?.id])
@@ -43,6 +45,7 @@ export function PredictionPanel({ circuit, open, onClose, settings, units }: Pre
   const runModel = async () => {
     if (!circuit || selected.length === 0) return
     setRunning(true)
+    setSlow(false)
     const req = {
       circuit: circuit.name,
       track_temp_c: trackTemp,
@@ -52,10 +55,14 @@ export function PredictionPanel({ circuit, open, onClose, settings, units }: Pre
     }
     // Minimum visible latency so the loading state reads intentionally,
     // even when the mock resolves instantly or the live API is very fast.
-    const [outcome] = await Promise.all([getPrediction(circuit, req), new Promise((r) => setTimeout(r, 450))])
+    const [outcome] = await Promise.all([
+      getPrediction(circuit, req, { onSlow: () => setSlow(true) }),
+      new Promise((r) => setTimeout(r, 450)),
+    ])
     setResult(outcome.data)
     setSource(outcome.source)
     setRunning(false)
+    setSlow(false)
   }
 
   const insights = useMemo(
@@ -251,7 +258,7 @@ export function PredictionPanel({ circuit, open, onClose, settings, units }: Pre
                     exit={{ opacity: 0 }}
                     className="flex h-full min-h-[380px] flex-col justify-center"
                   >
-                    <ChartSkeleton />
+                    <ChartSkeleton slow={slow} />
                   </motion.div>
                 ) : result ? (
                   <motion.div

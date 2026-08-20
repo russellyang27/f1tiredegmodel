@@ -7,7 +7,7 @@ import { motion } from "framer-motion"
  * so the loading state reads as "data arriving" rather than "please wait" —
  * three faint curves sweep in and pulse while the real prediction resolves.
  */
-export function ChartSkeleton() {
+export function ChartSkeleton({ slow = false }: { slow?: boolean }) {
   return (
     <div className="flex h-[320px] w-full flex-col">
       <svg viewBox="0 0 600 280" className="h-full w-full" preserveAspectRatio="none">
@@ -62,11 +62,19 @@ export function ChartSkeleton() {
         </defs>
       </svg>
 
-      <div className="mt-1 flex items-center justify-center gap-2">
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
-        <p className="font-mono text-[11px] uppercase tracking-widest text-white/40">
-          Inferring degradation curves
-        </p>
+      <div className="mt-1 flex flex-col items-center gap-1.5">
+        <div className="flex items-center gap-2">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
+          <p className="font-mono text-[11px] uppercase tracking-widest text-white/40">
+            {slow ? "Waking up the model server" : "Inferring degradation curves"}
+          </p>
+        </div>
+        {slow && (
+          <p className="max-w-xs text-center font-mono text-[10px] leading-relaxed text-white/30">
+            First request after a while idle can take up to a minute {"\u2014"} the free-tier host has to
+            fully restart, not just recompute.
+          </p>
+        )}
       </div>
     </div>
   )

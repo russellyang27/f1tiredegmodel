@@ -33,6 +33,7 @@ interface SideState {
 export function CompareModal({ circuits, open, onClose, settings, onUnpin, units }: CompareModalProps) {
   const { trackTemp, setTrackTemp, wet, setWet, threshold, setThreshold, selected, toggleCompound } = settings
   const [running, setRunning] = useState(false)
+  const [slow, setSlow] = useState(false)
   const [sides, setSides] = useState<[SideState, SideState]>([
     { result: null, source: null },
     { result: null, source: null },
@@ -53,6 +54,7 @@ export function CompareModal({ circuits, open, onClose, settings, onUnpin, units
   const runComparison = async () => {
     if (selected.length === 0) return
     setRunning(true)
+    setSlow(false)
     const req = (circuit: Circuit) => ({
       circuit: circuit.name,
       track_temp_c: trackTemp,
@@ -60,8 +62,12 @@ export function CompareModal({ circuits, open, onClose, settings, onUnpin, units
       threshold_s: threshold,
       compounds: COMPOUND_ORDER.filter((c) => selected.includes(c)),
     })
+    const onSlow = () => setSlow(true)
     const [[a, b]] = await Promise.all([
-      Promise.all([getPrediction(circuitA, req(circuitA)), getPrediction(circuitB, req(circuitB))]),
+      Promise.all([
+        getPrediction(circuitA, req(circuitA), { onSlow }),
+        getPrediction(circuitB, req(circuitB), { onSlow }),
+      ]),
       new Promise((r) => setTimeout(r, 450)),
     ])
     setSides([
@@ -69,6 +75,7 @@ export function CompareModal({ circuits, open, onClose, settings, onUnpin, units
       { result: b.data, source: b.source },
     ])
     setRunning(false)
+    setSlow(false)
   }
 
   // Shared scale so a bar for e.g. "Baku HARD" is visually comparable to
@@ -177,6 +184,7 @@ export function CompareModal({ circuits, open, onClose, settings, onUnpin, units
                 circuit={circuit}
                 side={sides[i]}
                 running={running}
+                slow={slow}
                 combinedMaxLife={combinedMaxLife}
                 onUnpin={() => onUnpin(circuit)}
               />
@@ -192,12 +200,14 @@ function CircuitColumn({
   circuit,
   side,
   running,
+  slow,
   combinedMaxLife,
   onUnpin,
 }: {
   circuit: Circuit
   side: SideState
   running: boolean
+  slow: boolean
   combinedMaxLife: number
   onUnpin: () => void
 }) {
@@ -225,7 +235,7 @@ function CircuitColumn({
       <AnimatePresence mode="wait">
         {running ? (
           <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <ChartSkeleton />
+            <ChartSkeleton slow={slow} />
           </motion.div>
         ) : side.result ? (
           <motion.div
