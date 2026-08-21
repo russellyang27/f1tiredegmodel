@@ -15,7 +15,7 @@ export const circuits: Circuit[] = [
   },
   {
     id: 2,
-    name: "Spa",
+    name: "Spa-Francorchamps",
     venue: "Spa-Francorchamps",
     country: "Belgium",
     image: "/circuits/spa.png",

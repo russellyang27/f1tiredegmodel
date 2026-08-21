@@ -30,6 +30,7 @@ export function PredictionPanel({ circuit, open, onClose, settings, units }: Pre
   const [running, setRunning] = useState(false)
   const [slow, setSlow] = useState(false)
   const [source, setSource] = useState<PredictionSource | null>(null)
+  const [fallbackReason, setFallbackReason] = useState<{ invalidRequest?: boolean; error?: string } | null>(null)
 
   // Reset only the result (not the settings — those persist across circuits
   // by design) whenever a new circuit is opened.
@@ -39,6 +40,7 @@ export function PredictionPanel({ circuit, open, onClose, settings, units }: Pre
       setRunning(false)
       setSlow(false)
       setSource(null)
+      setFallbackReason(null)
     }
   }, [open, circuit?.id])
 
@@ -61,6 +63,9 @@ export function PredictionPanel({ circuit, open, onClose, settings, units }: Pre
     ])
     setResult(outcome.data)
     setSource(outcome.source)
+    setFallbackReason(
+      outcome.source === "mock" ? { invalidRequest: outcome.invalidRequest, error: outcome.error } : null,
+    )
     setRunning(false)
     setSlow(false)
   }
@@ -176,10 +181,10 @@ export function PredictionPanel({ circuit, open, onClose, settings, units }: Pre
                   <EditableValue
                     value={threshold}
                     suffix="s"
-                    min={0.5}
+                    min={0.001}
                     max={4}
-                    step={0.1}
-                    decimals={1}
+                    step={0.001}
+                    decimals={3}
                     onChange={(v) => {
                       setThreshold(v)
                       setResult(null)
@@ -189,9 +194,9 @@ export function PredictionPanel({ circuit, open, onClose, settings, units }: Pre
               >
                 <Slider
                   value={[threshold]}
-                  min={0.5}
+                  min={0.001}
                   max={4}
-                  step={0.1}
+                  step={0.001}
                   onValueChange={(v) => {
                     setThreshold(v[0])
                     setResult(null)
@@ -284,9 +289,11 @@ export function PredictionPanel({ circuit, open, onClose, settings, units }: Pre
                       </span>
                       {source === "mock" && (
                         <span className="font-mono text-[10px] text-white/30">
-                          {process.env.NEXT_PUBLIC_API_URL
-                            ? "live API unreachable, showing mock output"
-                            : "NEXT_PUBLIC_API_URL not set"}
+                          {!process.env.NEXT_PUBLIC_API_URL
+                            ? "NEXT_PUBLIC_API_URL not set"
+                            : fallbackReason?.invalidRequest
+                              ? `live model rejected this request: ${fallbackReason.error}`
+                              : "live API unreachable, showing mock output"}
                         </span>
                       )}
                     </div>
@@ -366,7 +373,7 @@ function Control({ label, value, children }: { label: string; value: React.React
  * point it becomes a real numeric input so the exact figure can be typed
  * instead of only dragged. Commits on blur or Enter, cancels on Escape.
  */
-function EditableValue({
+export function EditableValue({
   value,
   suffix = "",
   min,

@@ -8,9 +8,10 @@ import { Switch } from "@/components/ui/switch"
 import { ChartSkeleton } from "./chart-skeleton"
 import { DegradationChart } from "./degradation-chart"
 import { CompoundResultCard } from "./compound-result-card"
+import { EditableValue } from "./prediction-panel"
 import { COMPOUNDS, COMPOUND_ORDER, abrasivenessNote, buildStrategyInsights, MAX_LAPS } from "@/lib/tire-model"
 import { CountryFlag } from "./country-flag"
-import { formatTemp } from "@/lib/units"
+import { celsiusToFahrenheit, fahrenheitToCelsius } from "@/lib/units"
 import type { UnitSystem } from "@/lib/units"
 import { getPrediction, type PredictionSource } from "@/lib/api"
 import type { PredictionSettings } from "@/hooks/use-prediction-settings"
@@ -28,6 +29,8 @@ interface CompareModalProps {
 interface SideState {
   result: PredictionResponse | null
   source: PredictionSource | null
+  invalidRequest?: boolean
+  error?: string
 }
 
 export function CompareModal({ circuits, open, onClose, settings, onUnpin, units }: CompareModalProps) {
@@ -71,8 +74,8 @@ export function CompareModal({ circuits, open, onClose, settings, onUnpin, units
       new Promise((r) => setTimeout(r, 450)),
     ])
     setSides([
-      { result: a.data, source: a.source },
-      { result: b.data, source: b.source },
+      { result: a.data, source: a.source, invalidRequest: a.invalidRequest, error: a.error },
+      { result: b.data, source: b.source, invalidRequest: b.invalidRequest, error: b.error },
     ])
     setRunning(false)
     setSlow(false)
@@ -115,7 +118,16 @@ export function CompareModal({ circuits, open, onClose, settings, onUnpin, units
               <div>
                 <div className="mb-2.5 flex items-center justify-between">
                   <p className="text-sm font-semibold text-white/80">Track Temp</p>
-                  <span className="font-mono text-sm text-white">{formatTemp(trackTemp, units)}</span>
+                  <EditableValue
+                    value={trackTemp}
+                    suffix={units === "imperial" ? "\u00B0F" : "\u00B0C"}
+                    min={15}
+                    max={55}
+                    step={1}
+                    toDisplay={units === "imperial" ? celsiusToFahrenheit : undefined}
+                    fromDisplay={units === "imperial" ? fahrenheitToCelsius : undefined}
+                    onChange={setTrackTemp}
+                  />
                 </div>
                 <Slider value={[trackTemp]} min={15} max={55} step={1} onValueChange={(v) => setTrackTemp(v[0])} />
               </div>
@@ -123,13 +135,21 @@ export function CompareModal({ circuits, open, onClose, settings, onUnpin, units
               <div>
                 <div className="mb-2.5 flex items-center justify-between">
                   <p className="text-sm font-semibold text-white/80">Threshold</p>
-                  <span className="font-mono text-sm text-white">{threshold.toFixed(1)}s</span>
+                  <EditableValue
+                    value={threshold}
+                    suffix="s"
+                    min={0.001}
+                    max={4}
+                    step={0.001}
+                    decimals={3}
+                    onChange={setThreshold}
+                  />
                 </div>
                 <Slider
                   value={[threshold]}
-                  min={0.5}
+                  min={0.001}
                   max={4}
-                  step={0.1}
+                  step={0.001}
                   onValueChange={(v) => setThreshold(v[0])}
                 />
               </div>
@@ -255,6 +275,15 @@ function CircuitColumn({
               <span className={`h-1.5 w-1.5 rounded-full ${side.source === "live" ? "bg-emerald-400" : "bg-white/40"}`} />
               {side.source === "live" ? "Live model" : "Simulated preview"}
             </span>
+            {side.source === "mock" && (
+              <span className="font-mono text-[10px] text-white/30">
+                {!process.env.NEXT_PUBLIC_API_URL
+                  ? "NEXT_PUBLIC_API_URL not set"
+                  : side.invalidRequest
+                    ? `live model rejected this request: ${side.error}`
+                    : "live API unreachable, showing mock output"}
+              </span>
+            )}
 
             <DegradationChart result={side.result} />
 

@@ -15,6 +15,16 @@ export interface PredictionResult {
   source: PredictionSource
   /** Populated when the live API was configured but the call failed. */
   error?: string
+  /**
+   * True specifically when the live API rejected the request as invalid
+   * (HTTP 4xx -- e.g. "circuit not recognized") rather than being
+   * unreachable/slow/erroring server-side. Distinguishing this matters:
+   * a 4xx means the live model IS working, it just doesn't know this
+   * circuit -- a very different situation from the API being down, and
+   * worth telling the user apart rather than lumping both into one vague
+   * "unreachable" message.
+   */
+  invalidRequest?: boolean
 }
 
 /**
@@ -53,7 +63,21 @@ export async function getPrediction(
     })
 
     if (!res.ok) {
-      throw new Error(`API responded ${res.status}`)
+      let detail = `API responded ${res.status}`
+      try {
+        const body = await res.json()
+        if (body?.detail) detail = body.detail
+      } catch {
+        // response body wasn't JSON -- keep the generic status message
+      }
+      const invalidRequest = res.status >= 400 && res.status < 500
+      console.warn("[tire-model] live API rejected the request, falling back to mock:", detail)
+      return {
+        data: predictDegradation(circuit, req),
+        source: "mock",
+        error: detail,
+        invalidRequest,
+      }
     }
 
     const data = (await res.json()) as PredictionResponse
