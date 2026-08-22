@@ -71,7 +71,7 @@ export function ChartSkeleton({ slow = false }: { slow?: boolean }) {
         </div>
         {slow && (
           <p className="max-w-xs text-center font-mono text-[10px] leading-relaxed text-white/30">
-            First request after a while idle can take up to a minute {"\u2014"} the free-tier host has to
+            First request after a while idle can take up to a minute or two {"\u2014"} the free-tier host has to
             fully restart, not just recompute.
           </p>
         )}
